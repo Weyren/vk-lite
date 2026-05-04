@@ -1,0 +1,11 @@
+# Binaries
+/vk-lite
+# Go modules cache
+/go/pkg/mod
+# IDE
+.vscode/
+.idea/
+# Docker
+docker-compose.override.yml
+# OS
+.DS_Store
