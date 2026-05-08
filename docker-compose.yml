@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file: .env
+    depends_on:
+      - db
+      - cache
+      - rabbit
+    restart: unless-stopped
+
+  db:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_USER: vk
+      POSTGRES_PASSWORD: vk
+      POSTGRES_DB: vk
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+
+  rabbit:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # UI
+
+volumes:
+  pg-data:
+  redis-data:
