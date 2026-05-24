@@ -1,20 +1,18 @@
-# ---------- build ----------
-FROM golang:1.26.1-alpine AS builder
+FROM golang:1.25-alpine AS build
+
 WORKDIR /src
 
-# кэшируем зависимости
 COPY go.mod go.sum ./
 RUN go mod download
 
-# копируем код и собираем
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-s -w" -o /app/vk-lite ./cmd/vk-lite
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/vk-lite ./cmd/vk-lite
 
-# ---------- runtime ----------
-FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+FROM alpine:3.22
+
 WORKDIR /app
-COPY --from=builder /app/vk-lite .
+
+COPY --from=build /out/vk-lite /app/vk-lite
+
 EXPOSE 8080
-ENTRYPOINT ["./vk-lite"]
+ENTRYPOINT ["/app/vk-lite"]

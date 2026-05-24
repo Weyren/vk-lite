@@ -12,25 +12,38 @@ type Config struct {
 	JWTTTL      time.Duration
 	PostgresDSN string
 	RedisAddr   string
-	AmqpURL     string // пока не используем, но добавим для будущих событий
+	AMQPURL     string
 }
 
-// NewConfig читает переменные окружения, задаёт sane‑defaults.
 func NewConfig() *Config {
-	ttl, _ := strconv.Atoi(getEnv("JWT_TTL_MINUTES", "60"))
+	ttlMinutes := getEnvInt("JWT_TTL_MINUTES", 60)
+
 	return &Config{
 		Port:        getEnv("APP_PORT", "8080"),
-		JWTSecret:   getEnv("JWT_SECRET", "change-me"),
-		JWTTTL:      time.Duration(ttl) * time.Minute,
+		JWTSecret:   getEnv("JWT_SECRET", "dev-secret"),
+		JWTTTL:      time.Duration(ttlMinutes) * time.Minute,
 		PostgresDSN: getEnv("POSTGRES_DSN", "postgres://vk:vk@localhost:5432/vk?sslmode=disable"),
 		RedisAddr:   getEnv("REDIS_ADDR", "localhost:6379"),
-		AmqpURL:     getEnv("AMQP_URL", "amqp://guest:guest@localhost:5672/"),
+		AMQPURL:     getEnv("AMQP_URL", "amqp://guest:guest@localhost:5672/"),
 	}
 }
 
-func getEnv(k, d string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
-	return d
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

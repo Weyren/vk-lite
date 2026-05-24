@@ -1,0 +1,9 @@
+.git
+.gocache
+.gomodcache
+tmp
+bin
+*.log
+Dockerfile
+docker-compose.yml
+README.md

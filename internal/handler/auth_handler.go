@@ -31,7 +31,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"id": u.ID, "email": u.Email})
+	c.JSON(http.StatusCreated, gin.H{"status": "ok", "id": u.ID, "email": u.Email, "name": u.Name})
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -48,5 +48,5 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "bad credentials"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"access_token": token})
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "access_token": token, "token_type": "Bearer"})
 }

@@ -1,4 +1,3 @@
-// cmd/vk-lite/main.go
 package main
 
 import (
@@ -16,34 +15,32 @@ import (
 func main() {
 	cfg := utils.NewConfig()
 
-	// инфраструктура
 	db := infra.NewPostgres(cfg)
-	//redisClient := infra.NewRedis(cfg) // пока не используется, но уже готов
+	redisClient := infra.NewRedis(cfg)
+	events := infra.NewRabbitPublisher(cfg)
 
-	// репозитории
 	userRepo := repo.NewUserRepo(db)
-
-	// сервисы
 	authSvc := service.NewAuthService(userRepo, cfg)
 
-	// хендлеры
 	authH := handler.NewAuthHandler(authSvc)
+	socialH := handler.NewSocialHandler(db, redisClient, events)
 
-	// роутер Gin
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	// публичные роуты
 	public := r.Group("/api/v1")
+	public.POST("/users", authH.Register)
 	public.POST("/auth/register", authH.Register)
 	public.POST("/auth/login", authH.Login)
 
-	// защищённые роуты (пока пусто)
 	protected := r.Group("/api/v1")
 	protected.Use(middleware.JWT(cfg.JWTSecret))
-	// сюда дальше будут post‑/like‑/feed‑хендлеры
+	protected.GET("/users/:id", socialH.GetUser)
+	protected.POST("/users/:id/follow", socialH.ToggleFollow)
+	protected.POST("/posts", socialH.CreatePost)
+	protected.POST("/posts/:id/like", socialH.ToggleLike)
+	protected.GET("/feed", socialH.GetFeed)
 
-	// health‑checks
 	r.GET("/healthz", func(c *gin.Context) { c.String(200, "OK") })
 	r.GET("/ready", func(c *gin.Context) { c.String(200, "OK") })
 
