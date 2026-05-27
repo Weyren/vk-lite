@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>vk-lite</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <button id="homeBtn" class="brand" type="button" aria-label="Открыть ленту">
+        <span class="brand-mark">vk</span>
+        <span class="brand-copy">
+          <strong>vk-lite</strong>
+          <small>учебная социальная сеть</small>
+        </span>
+      </button>
+
+      <form id="profileForm" class="profile-search">
+        <i data-lucide="search"></i>
+        <input id="profileId" type="number" min="1" placeholder="ID профиля" />
+        <button type="submit">Открыть</button>
+      </form>
+
+      <div class="session">
+        <span id="sessionStatus" class="session-status">Гость</span>
+        <button id="loginOpenBtn" class="icon-button labeled" type="button">
+          <i data-lucide="log-in"></i>
+          Войти
+        </button>
+        <button id="logoutBtn" class="icon-button hidden" type="button" title="Выйти" aria-label="Выйти">
+          <i data-lucide="log-out"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="app-layout">
+      <aside class="sidebar" aria-label="Навигация">
+        <button id="navFeedBtn" class="nav-item active" type="button">
+          <i data-lucide="newspaper"></i>
+          Лента
+        </button>
+        <button id="navMeBtn" class="nav-item" type="button">
+          <i data-lucide="user-round"></i>
+          Мой профиль
+        </button>
+        <a class="nav-item" href="http://localhost:3000/d/vk-lite-api/vk-lite-api" target="_blank" rel="noreferrer">
+          <i data-lucide="chart-no-axes-combined"></i>
+          Grafana
+        </a>
+        <a class="nav-item" href="http://localhost:9090" target="_blank" rel="noreferrer">
+          <i data-lucide="activity"></i>
+          Prometheus
+        </a>
+      </aside>
+
+      <main class="shell">
+        <section id="profileView" class="profile-view hidden" aria-live="polite"></section>
+
+        <section id="composerSection" class="composer" aria-labelledby="composerTitle">
+          <div class="section-head">
+            <div>
+              <h1 id="composerTitle">Новый пост</h1>
+              <p>Можно прикрепить фото или видео. Файл сохранится локально в контейнере API.</p>
+            </div>
+            <button id="refreshFeedBtn" class="icon-button" type="button" title="Обновить ленту" aria-label="Обновить ленту">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+          </div>
+
+          <form id="postForm" class="post-form">
+            <textarea id="postContent" rows="4" placeholder="Что нового?"></textarea>
+            <div class="media-row">
+              <label class="file-picker">
+                <i data-lucide="paperclip"></i>
+                <span id="mediaFileLabel">Прикрепить фото или видео</span>
+                <input id="mediaFile" type="file" accept="image/*,video/*" />
+              </label>
+              <input id="mediaUrl" type="url" placeholder="Или ссылка на медиа" />
+            </div>
+            <button class="primary-button" type="submit">
+              <i data-lucide="send"></i>
+              Опубликовать
+            </button>
+          </form>
+        </section>
+
+        <section class="feed-section" aria-labelledby="feedTitle">
+          <div class="section-head">
+            <div>
+              <h1 id="feedTitle">Лента</h1>
+              <p id="feedMeta">Войди, чтобы увидеть посты.</p>
+            </div>
+            <span id="autoRefreshState" class="pill">автообновление</span>
+          </div>
+          <div id="feedList" class="feed-list"></div>
+          <button id="loadMoreFeedBtn" class="secondary-button hidden" type="button">
+            <i data-lucide="chevrons-down"></i>
+            Загрузить еще
+          </button>
+        </section>
+      </main>
+    </div>
+
+    <section id="authModal" class="modal hidden" aria-labelledby="authTitle" aria-modal="true" role="dialog">
+      <div class="modal-backdrop"></div>
+      <div class="auth-card">
+        <div class="section-head">
+          <div>
+            <h1 id="authTitle">Вход</h1>
+            <p>Авторизуйся, чтобы писать посты, лайкать и подписываться.</p>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Режим авторизации">
+          <button id="loginTab" class="tab active" type="button">Вход</button>
+          <button id="registerTab" class="tab" type="button">Регистрация</button>
+        </div>
+
+        <form id="authForm" class="form">
+          <label>
+            Email
+            <input id="emailInput" name="email" type="email" autocomplete="email" placeholder="alice@example.com" required />
+          </label>
+          <label>
+            Пароль
+            <input id="passwordInput" name="password" type="password" autocomplete="current-password" placeholder="secret123" required minlength="6" />
+          </label>
+          <label id="nameField" class="hidden">
+            Имя
+            <input id="nameInput" name="name" type="text" autocomplete="name" placeholder="Alice" />
+          </label>
+          <button class="primary-button full" type="submit">
+            <i data-lucide="key-round"></i>
+            <span id="authSubmitText">Войти</span>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: vk-lite
+    orgId: 1
+    folder: vk-lite
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

@@ -13,6 +13,7 @@ FROM alpine:3.22
 WORKDIR /app
 
 COPY --from=build /out/vk-lite /app/vk-lite
+COPY web /app/web
 
 EXPOSE 8080
 ENTRYPOINT ["/app/vk-lite"]

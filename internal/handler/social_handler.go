@@ -2,9 +2,14 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Weyren/vk-lite/pkg/models"
@@ -34,6 +39,8 @@ type postResponse struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
+const maxMediaUploadSize = 50 << 20
+
 func NewSocialHandler(db *gorm.DB, redisClient *redis.Client, events EventPublisher) *SocialHandler {
 	return &SocialHandler{db: db, redis: redisClient, events: events}
 }
@@ -51,10 +58,19 @@ func (h *SocialHandler) GetUser(c *gin.Context) {
 	}
 
 	var followers, following, posts int64
+	var isFollowing bool
 	ctx := c.Request.Context()
 	h.db.WithContext(ctx).Model(&models.Subscription{}).Where("target_id = ?", id).Count(&followers)
 	h.db.WithContext(ctx).Model(&models.Subscription{}).Where("subscriber_id = ?", id).Count(&following)
 	h.db.WithContext(ctx).Model(&models.Post{}).Where("author_id = ?", id).Count(&posts)
+	if currentUserID(c) != id {
+		var subscriptionCount int64
+		h.db.WithContext(ctx).
+			Model(&models.Subscription{}).
+			Where("subscriber_id = ? AND target_id = ?", currentUserID(c), id).
+			Count(&subscriptionCount)
+		isFollowing = subscriptionCount > 0
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ok",
@@ -65,11 +81,79 @@ func (h *SocialHandler) GetUser(c *gin.Context) {
 			"avatar_url":      user.AvatarURL,
 			"followers_count": followers,
 			"following_count": following,
+			"is_following":    isFollowing,
 			"posts_count":     posts,
 			"created_at":      user.CreatedAt,
 			"updated_at":      user.UpdatedAt,
 		},
 	})
+}
+
+func (h *SocialHandler) GetUserPosts(c *gin.Context) {
+	userID, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+
+	page, perPage := pagination(c)
+	posts, err := h.postsByAuthor(c.Request.Context(), userID, (page-1)*perPage, perPage)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "ok",
+		"page":     page,
+		"per_page": perPage,
+		"posts":    posts,
+	})
+}
+
+func (h *SocialHandler) UploadMedia(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxMediaUploadSize)
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
+	}
+	defer file.Close()
+
+	contentType := header.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "image/") && !strings.HasPrefix(contentType, "video/") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only image and video files are supported"})
+		return
+	}
+
+	if err := os.MkdirAll("uploads", 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if ext == "" {
+		ext = extensionFromContentType(contentType)
+	}
+	name, err := randomFileName(ext)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	dst := filepath.Join("uploads", name)
+	if err := c.SaveUploadedFile(header, dst); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	url := "/uploads/" + name
+	h.publish(c.Request.Context(), "media.uploaded", gin.H{
+		"user_id":      currentUserID(c),
+		"url":          url,
+		"content_type": contentType,
+	})
+	c.JSON(http.StatusCreated, gin.H{"status": "ok", "url": url, "content_type": contentType})
 }
 
 func (h *SocialHandler) ToggleFollow(c *gin.Context) {
@@ -192,11 +276,7 @@ func (h *SocialHandler) ToggleLike(c *gin.Context) {
 }
 
 func (h *SocialHandler) GetFeed(c *gin.Context) {
-	page := positiveQueryInt(c, "page", 1)
-	perPage := positiveQueryInt(c, "per_page", 20)
-	if perPage > 50 {
-		perPage = 50
-	}
+	page, perPage := pagination(c)
 
 	ctx := c.Request.Context()
 	userID := currentUserID(c)
@@ -222,6 +302,25 @@ func (h *SocialHandler) GetFeed(c *gin.Context) {
 		"from_cache": fromCache,
 		"posts":      posts,
 	})
+}
+
+func (h *SocialHandler) postsByAuthor(ctx context.Context, userID int64, offset, limit int) ([]postResponse, error) {
+	var rows []postResponse
+	err := h.db.WithContext(ctx).
+		Table("posts").
+		Select("posts.id, posts.author_id, users.name AS author_name, posts.content, posts.media_url, posts.created_at, posts.updated_at").
+		Joins("JOIN users ON users.id = posts.author_id").
+		Where("posts.author_id = ?", userID).
+		Order("posts.created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	h.fillLikeCounts(ctx, rows)
+	return rows, nil
 }
 
 func (h *SocialHandler) feedFromDB(ctx context.Context, userID int64, offset, limit int) ([]postResponse, error) {
@@ -421,6 +520,15 @@ func positiveQueryInt(c *gin.Context, name string, fallback int) int {
 	return value
 }
 
+func pagination(c *gin.Context) (int, int) {
+	page := positiveQueryInt(c, "page", 1)
+	perPage := positiveQueryInt(c, "per_page", 20)
+	if perPage > 50 {
+		perPage = 50
+	}
+	return page, perPage
+}
+
 func statusFromDBError(c *gin.Context, err error) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
@@ -435,4 +543,31 @@ func feedKey(userID int64) string {
 
 func likesKey(postID int64) string {
 	return "post:likes:" + strconv.FormatInt(postID, 10)
+}
+
+func randomFileName(ext string) (string, error) {
+	var bytes [16]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes[:]) + ext, nil
+}
+
+func extensionFromContentType(contentType string) string {
+	switch contentType {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	case "video/mp4":
+		return ".mp4"
+	case "video/webm":
+		return ".webm"
+	default:
+		return ".bin"
+	}
 }

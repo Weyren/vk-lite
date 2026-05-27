@@ -10,10 +10,16 @@ Start Docker Desktop first, then run:
 docker compose up -d --build
 ```
 
-API will be available at:
+Web UI will be available at:
 
 ```text
 http://localhost:8080
+```
+
+API endpoints are available under:
+
+```text
+http://localhost:8080/api/v1
 ```
 
 RabbitMQ UI:
@@ -23,6 +29,22 @@ http://localhost:15672
 login: guest
 password: guest
 ```
+
+Prometheus:
+
+```text
+http://localhost:9090
+```
+
+Grafana:
+
+```text
+http://localhost:3000
+login: admin
+password: admin
+```
+
+The Grafana dashboard `vk-lite API` is provisioned automatically from `monitoring/grafana/dashboards`.
 
 Stop containers:
 
@@ -76,6 +98,26 @@ Invoke-RestMethod -Method POST http://localhost:8080/api/v1/posts `
   -Headers @{ Authorization = "Bearer $($bob.access_token)" } `
   -ContentType "application/json" `
   -Body '{"content":"Hello from vk-lite in Docker!"}'
+```
+
+Upload media for a post:
+
+```powershell
+$media = curl.exe -s -X POST http://localhost:8080/api/v1/media `
+  -H "Authorization: Bearer $($bob.access_token)" `
+  -F "file=@.\photo.jpg" | ConvertFrom-Json
+
+Invoke-RestMethod -Method POST http://localhost:8080/api/v1/posts `
+  -Headers @{ Authorization = "Bearer $($bob.access_token)" } `
+  -ContentType "application/json" `
+  -Body "{`"content`":`"Post with media`",`"media_url`":`"$($media.url)`"}"
+```
+
+Open profile posts:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/v1/users/2/posts?page=1"&"per_page=10 `
+  -Headers @{ Authorization = "Bearer $($alice.access_token)" }
 ```
 
 Alice likes Bob's post and opens her feed:
